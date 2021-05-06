@@ -1,0 +1,300 @@
+<script><![CDATA[import com.eviware.soapui.support.XmlHolder
+import jxl.*
+import jxl.write.*
+import java.io.File;
+import java.io.*;
+import jxl.read.biff.BiffException;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.hssf.usermodel.*
+import org.apache.poi.xssf.usermodel.*
+import org.apache.poi.ss.usermodel.*
+import com.eviware.soapui.support.types.StringToStringMap
+
+//Declare Variable
+
+def myTestCase= context.testCase
+def counter,next,previous,size
+def props = new Properties()
+
+def filePath ="C:\\Readyapi\\DROP3"
+//testRunner.testCase.testSuite.project.getPropertyValue("xlsPath") 
+
+//import file
+FileInputStream data = new FileInputStream(filePath + "\\Token1.xls");
+HSSFWorkbook wb = new HSSFWorkbook(data);
+HSSFSheet sh = wb.getSheetAt(0); 
+
+RowCount=sh.getPhysicalNumberOfRows()
+
+i=1
+
+for (i=1;i<RowCount+1;i++)
+{
+row= sh.getRow(i)
+if (row==null)
+{
+	log.info "break"
+	break;
+}
+else
+{	
+	// Get the SOAPUI Proj name
+	String TCProjVal = row.getCell(1)
+	
+	// Get the Test Suite Value
+	def TScell = row.getCell(2)
+	log.info TScell
+	String TestSuiteName= TScell
+      log.info "TS Name:"
+      log.info TestSuiteName
+
+	// Get the SOAPUI TC name
+	def TCcell = row.getCell(3)
+	log.info TCcell
+	String TestCasename= TCcell
+log.info "TC Name:"
+log.info TestCasename	
+
+	// Get the ALM TC name
+	def TCalmcell = row.getCell(4)
+//	log.info TCalmcell
+	String ALMTestCasename= TCalmcell
+	log.info "TC ALM Name:"
+log.info ALMTestCasename
+
+	// Get Test Set ID
+	def cellVal= row.getCell(5)
+	String TestSetID= cellVal
+	if(TestSetID != null){
+		TestSetID= TestSetID.replace('.0','')	
+	}
+log.info "TestSetID:"
+log.info TestSetID
+
+	// Get Execution Flag
+	def EFlag= row.getCell(6)
+	String ExecFlag= EFlag
+log.info "Exeflag:"
+log.info ExecFlag
+
+	// Get ALM flag
+	def AFlag= row.getCell(7)
+	String ALMExecFlag= AFlag
+	log.info "ALMExeflag:"
+	log.info ALMExecFlag
+
+	
+	
+	
+	if (ExecFlag=="Y" && TestSetID != null)
+	{
+		log.info("Start to execute 'Test Scenario' ALM integration.")
+		def properties= new com.eviware.soapui.support.types.StringToObjectMap()
+		projectname=testRunner.testCase.testSuite.project.workspace.getProjectByName(TCProjVal).name
+		projecttorun = testRunner.getTestCase().getTestSuite().getProject().getWorkspace().getProjectByName(TCProjVal);
+		TestSuitetorun=projecttorun.getTestSuiteByName(TestSuiteName);
+	log.info(TestSuitetorun.name)
+		testCasetorun= TestSuitetorun.getTestCaseByName(TestCasename);
+	log.info(TestCasename)
+
+		sleep (400)
+		def result=testRunner.testCase.testSuite.project.workspace.getProjectByName(TCProjVal).testSuites[TestSuitetorun.name].testCases[testCasetorun.name].run(properties,false)
+		//log.info(result.status)
+		newResult=result.getStatus().toString()
+		log.info("Test result = " + newResult)
+
+
+		if (ALMExecFlag=="Y")
+		{
+			log.info("ALM part begin")
+			def num = testRunner.testCase.testSuite.project.workspace.getProjectByName(TCProjVal).testSuites[TestSuitetorun.name].testCases[testCasetorun.name].getTestSteps().size()
+			def myresponsedata = ""
+			for(n in (0..num-1)){
+				myrequeststep= testRunner.testCase.testSuite.project.workspace.getProjectByName(TCProjVal).testSuites[TestSuitetorun.name].getTestCaseByName(testCasetorun.name).getTestStepAt(n)
+				//log.info(myrequeststep.name)
+				myresponsedata += "Test Step = *********" + myrequeststep.name + "*********" + "\n\n"
+				if(myrequeststep.getProperty("RawRequest") != null && myrequeststep.getProperty("RawRequest").getValue() != ""){
+					myresponsedata += "Request=>>>>\n\n" + myrequeststep.getProperty("RawRequest").getValue() + "\n\n"
+				} else if(myrequeststep.getProperty("Request") != null && myrequeststep.getProperty("Request").getValue() != ""){
+					myresponsedata += "Request=>>>>\n\n" + myrequeststep.getProperty("Request").getValue() + "\n\n"
+				} else {
+					myresponsedata += "Request\nNo Request Information for this Step\n\n"
+				}
+
+				if(myrequeststep.getProperty("ResponseAsXML") != null && myrequeststep.getProperty("ResponseAsXML").getValue() != ""){
+					myresponsedata += "Response<<<<=\n\n" + myrequeststep.getProperty("ResponseAsXML").getValue() + "\n\n"
+				} else if(myrequeststep.getProperty("Response") != null && myrequeststep.getProperty("Response").getValue() != ""){
+					myresponsedata += "Response<<<<=\n\n" + myrequeststep.getProperty("Response").getValue() + "\n\n"
+				} else {
+					myresponsedata += "Response\nNo Response Information for this Step\n\n"
+				}
+				log.info "run is " + n
+				
+			}
+			
+	
+			if (newResult.contains("PASS"))
+			{
+				AlmResult="Passed"
+				//log.info("******************IF******************************")
+			}
+			else
+			{
+				AlmResult="Failed"
+				//log.info("****************ELSE********************************")
+			}
+				log.info(AlmResult)
+				log.info("************************************************")
+				
+				def StartDate= new Date()
+				Timestamp= StartDate.format("yyyy-mm-dd HH:mm:ss")
+				log.info Timestamp
+
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].setPropertyValue("testCaseName",ALMTestCasename)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].setPropertyValue("testSetId",TestSetID)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].setPropertyValue("ALMtestStatus",AlmResult)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].setPropertyValue("evidences",myresponsedata)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].setPropertyValue("timestamp",Timestamp)
+				
+				log.info("ALM Part begins")
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].testCases["ALM_Open-User-Session"].run(properties,false)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].testCases["ALM_Update-Test-Instances"].run(properties,false)
+				testRunner.testCase.testSuite.project.testSuites['ALMIntegrationSuite'].testCases["Clear-Session"].run(properties,false)
+				log.info("ALM Part End")
+
+		}
+		log.info("Done")
+
+	}
+	else
+	{
+		log.info("Test Flag is set to N")
+	}
+		
+}
+
+}
+
+wb.close()
+//set password to clear
+//context.testCase.testSuite.project.setPropertyValue("ALMPassword", "")]]></script>
+        </con:config>
+      </con:testStep>
+      <con:testStep type="groovy" name="ExecuteTC_TestScenarioDCRToken2DROP3" id="d3e986de-1d21-43d6-9b01-97236513a1e9">
+        <con:settings/>
+        <con:config>
+          <script><![CDATA[import com.eviware.soapui.support.XmlHolder
+import jxl.*
+import jxl.write.*
+import java.io.File;
+import java.io.*;
+import jxl.read.biff.BiffException;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.hssf.usermodel.*
+import org.apache.poi.xssf.usermodel.*
+import org.apache.poi.ss.usermodel.*
+import com.eviware.soapui.support.types.StringToStringMap
+
+//Declare Variable
+
+def myTestCase= context.testCase
+def counter,next,previous,size
+def props = new Properties()
+
+def filePath ="C:\\Readyapi\\DROP3"
+//testRunner.testCase.testSuite.project.getPropertyValue("xlsPath") 
+
+//import file
+FileInputStream data = new FileInputStream(filePath + "\\Token2.xls");
+HSSFWorkbook wb = new HSSFWorkbook(data);
+HSSFSheet sh = wb.getSheetAt(0); 
+
+RowCount=sh.getPhysicalNumberOfRows()
+
+i=1
+
+for (i=1;i<RowCount+1;i++)
+{
+row= sh.getRow(i)
+if (row==null)
+{
+	log.info "break"
+	break;
+}
+else
+{	
+	// Get the SOAPUI Proj name
+	String TCProjVal = row.getCell(1)
+	
+	// Get the Test Suite Value
+	def TScell = row.getCell(2)
+	log.info TScell
+	String TestSuiteName= TScell
+      log.info "TS Name:"
+      log.info TestSuiteName
+
+	// Get the SOAPUI TC name
+	def TCcell = row.getCell(3)
+	log.info TCcell
+	String TestCasename= TCcell
+log.info "TC Name:"
+log.info TestCasename	
+
+	// Get the ALM TC name
+	def TCalmcell = row.getCell(4)
+//	log.info TCalmcell
+	String ALMTestCasename= TCalmcell
+	log.info "TC ALM Name:"
+log.info ALMTestCasename
+
+	// Get Test Set ID
+	def cellVal= row.getCell(5)
+	String TestSetID= cellVal
+	if(TestSetID != null){
+		TestSetID= TestSetID.replace('.0','')	
+	}
+log.info "TestSetID:"
+log.info TestSetID
+
+	// Get Execution Flag
+	def EFlag= row.getCell(6)
+	String ExecFlag= EFlag
+log.info "Exeflag:"
+log.info ExecFlag
+
+	// Get ALM flag
+	def AFlag= row.getCell(7)
+	String ALMExecFlag= AFlag
+	log.info "ALMExeflag:"
+	log.info ALMExecFlag
+
+	
+	
+	
+	if (ExecFlag=="Y" && TestSetID != null)
+	{
+		log.info("Start to execute 'Test Scenario' ALM integration.")
+		def properties= new com.eviware.soapui.support.types.StringToObjectMap()
+		projectname=testRunner.testCase.testSuite.project.workspace.getProjectByName(TCProjVal).name
+		log.info projectname
+		projecttorun = testRunner.getTestCase().getTestSuite().getProject().getWorkspace().getProjectByName(TCProjVal);
+		TestSuitetorun=projecttorun.getTestSuiteByName(TestSuiteName);
+	log.info(TestSuitetorun.name)
+		testCasetorun= TestSuitetorun.getTestCaseByName(TestCasename);
+	log.info(TestCasename)
+
+		sleep (400)
